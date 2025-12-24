@@ -10,7 +10,12 @@ type Activity = {
   message: string;
 };
 
-export function AgentActivityLog() {
+interface AgentActivityLogProps {
+  limit?: number;
+  refreshKey?: number;
+}
+
+export function AgentActivityLog({ limit = 30, refreshKey = 0 }: AgentActivityLogProps) {
   const [activities, setActivities] = useState<Activity[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -18,11 +23,11 @@ export function AgentActivityLog() {
     fetchActivities();
     const interval = setInterval(fetchActivities, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [limit, refreshKey]);
 
   const fetchActivities = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/v1/activities?limit=30');
+      const response = await fetch(`http://localhost:8000/api/v1/activities?limit=${limit}`);
       const data = await response.json();
       setActivities(data);
     } catch (error) {

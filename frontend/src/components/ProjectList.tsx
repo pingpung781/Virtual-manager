@@ -18,7 +18,7 @@ const healthColors = {
   delayed: 'bg-red-500/20 text-red-400 border-red-500/30',
 };
 
-export function ProjectList({ limit, refreshKey }: { limit?: number; refreshKey?: number }) {
+export default function ProjectList({ limit, refreshKey }: { limit?: number; refreshKey?: number }) {
   const [projects, setProjects] = useState<Project[]>([]);
 
   useEffect(() => {

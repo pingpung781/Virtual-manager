@@ -1,14 +1,15 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.app.core.database import engine, Base
-from backend.app.routes import router
+from backend.app.routes import router as api_router
+from backend.app.routers import managerial, goals, milestones, execution
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Virtual AI Manager",
-    version="0.2.0",
+    version="1.0.0",
     description="Autonomous AI Manager with Task, Project & Execution Management"
 )
 
@@ -22,25 +23,32 @@ app.add_middleware(
 )
 
 # Include API routes
-app.include_router(api_router, prefix="/api")
+app.include_router(api_router)
 
-# Include the new Managerial Intelligence router
-# This makes endpoints available at /api/managerial/analyze-risks, etc.
+# Include feature-specific routers
 app.include_router(managerial.router, prefix="/api")
+app.include_router(goals.router, prefix="/api")
+app.include_router(milestones.router, prefix="/api")
+app.include_router(execution.router, prefix="/api")
 
 
 @app.get("/")
 async def root():
     return {
         "message": "Virtual AI Manager System Online",
-        "version": "0.1.0",
+        "version": "1.0.0",
         "features": [
             "Task Management",
-            "Project Management",
+            "Project Management", 
+            "Milestone Tracking",
+            "Goal Alignment",
             "Execution Monitoring",
+            "Managerial Intelligence",
+            "Escalation System",
             "Agent Orchestration"
         ]
     }
+
 
 @app.get("/health")
 async def health_check():
@@ -49,6 +57,7 @@ async def health_check():
         "database": "connected",
         "agents": {
             "orchestrator": "online",
+            "managerial": "online",
             "planning": "online",
             "execution": "online",
             "people_ops": "online",
