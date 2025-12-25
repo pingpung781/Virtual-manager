@@ -58,6 +58,35 @@ class ParticipantStatus(enum.Enum):
     ACCEPTED = "accepted"
     DECLINED = "declined"
 
+class CandidateStage(enum.Enum):
+    APPLIED = "applied"
+    SCREENING = "screening"
+    INTERVIEWING = "interviewing"
+    OFFER = "offer"
+    HIRED = "hired"
+    REJECTED = "rejected"
+
+class InterviewStatus(enum.Enum):
+    SCHEDULED = "scheduled"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+
+class JobRoleStatus(enum.Enum):
+    DRAFT = "draft"
+    OPEN = "open"
+    CLOSED = "closed"
+    FILLED = "filled"
+
+class ArticleStatus(enum.Enum):
+    DRAFT = "draft"
+    PUBLISHED = "published"
+    ARCHIVED = "archived"
+
+class OnboardingStatus(enum.Enum):
+    NOT_STARTED = "not_started"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+
 # ==================== ASSOCIATION TABLES ====================
 
 # Milestone-Task many-to-many relationship
@@ -429,3 +458,183 @@ class BurnoutIndicator(Base):
     acknowledged_at = Column(DateTime)
     
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+# ==================== GROWTH & SCALING MODELS ====================
+
+class JobRole(Base):
+    """
+    Job role definition for recruitment.
+    Maps to: Hiring & Recruitment requirements.
+    """
+    __tablename__ = "job_roles"
+    
+    id = Column(String, primary_key=True)
+    title = Column(String, nullable=False)
+    team = Column(String, nullable=False)
+    department = Column(String)
+    responsibilities = Column(Text)  # JSON array
+    required_skills = Column(Text)  # JSON array - must-have
+    nice_to_have_skills = Column(Text)  # JSON array
+    experience_years = Column(Integer, default=0)
+    seniority_level = Column(String)  # junior, mid, senior, lead
+    location = Column(String)
+    work_mode = Column(String)  # remote, hybrid, onsite
+    reports_to = Column(String)
+    salary_range = Column(String)
+    success_criteria = Column(Text)
+    job_description = Column(Text)
+    status = Column(Enum(JobRoleStatus), default=JobRoleStatus.DRAFT)
+    is_approved = Column(Boolean, default=False)  # Human approval required
+    approved_by = Column(String)
+    approved_at = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    candidates = relationship("Candidate", back_populates="job_role", cascade="all, delete-orphan")
+
+
+class Candidate(Base):
+    """
+    Candidate tracking for recruitment pipeline.
+    Maps to: Track Candidates and Stages requirements.
+    """
+    __tablename__ = "candidates"
+    
+    id = Column(String, primary_key=True)
+    job_role_id = Column(String, ForeignKey("job_roles.id"), nullable=False)
+    name = Column(String, nullable=False)
+    email = Column(String, nullable=False)
+    phone = Column(String)
+    resume_url = Column(String)
+    linkedin_url = Column(String)
+    stage = Column(Enum(CandidateStage), default=CandidateStage.APPLIED)
+    source = Column(String)  # linkedin, referral, website, etc.
+    notes = Column(Text)
+    skills_match_score = Column(Integer)  # 0-100
+    rejection_reason = Column(Text)
+    rejection_approved_by = Column(String)  # Human approval for rejection
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    job_role = relationship("JobRole", back_populates="candidates")
+    interviews = relationship("Interview", back_populates="candidate", cascade="all, delete-orphan")
+
+
+class Interview(Base):
+    """
+    Interview scheduling and feedback.
+    Maps to: Schedule Interviews and Summarize Feedback requirements.
+    """
+    __tablename__ = "interviews"
+    
+    id = Column(String, primary_key=True)
+    candidate_id = Column(String, ForeignKey("candidates.id"), nullable=False)
+    round_number = Column(Integer, default=1)  # Interview round (1, 2, 3...)
+    interview_type = Column(String)  # phone_screen, technical, behavioral, culture
+    interviewers = Column(Text)  # JSON array of interviewer names
+    scheduled_time = Column(DateTime, nullable=False)
+    duration_minutes = Column(Integer, default=60)
+    location = Column(String)  # Room or video link
+    agenda = Column(Text)
+    status = Column(Enum(InterviewStatus), default=InterviewStatus.SCHEDULED)
+    
+    # Feedback (collected post-interview)
+    feedback = Column(Text)  # JSON array of feedback from each interviewer
+    strengths = Column(Text)
+    concerns = Column(Text)
+    recommendation = Column(String)  # strong_hire, hire, no_hire, strong_no_hire
+    feedback_summary = Column(Text)  # AI-generated summary
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    candidate = relationship("Candidate", back_populates="interviews")
+
+
+class OnboardingPlan(Base):
+    """
+    Onboarding plan for new hires.
+    Maps to: Generate Onboarding Plans requirements.
+    """
+    __tablename__ = "onboarding_plans"
+    
+    id = Column(String, primary_key=True)
+    employee_id = Column(String, ForeignKey("employees.id"), nullable=False)
+    role = Column(String, nullable=False)
+    start_date = Column(DateTime, nullable=False)
+    
+    # 30-60-90 day goals
+    goals_30_days = Column(Text)  # JSON array
+    goals_60_days = Column(Text)  # JSON array
+    goals_90_days = Column(Text)  # JSON array
+    
+    # Buddy/mentor assignment
+    buddy_name = Column(String)
+    mentor_name = Column(String)
+    
+    status = Column(Enum(OnboardingStatus), default=OnboardingStatus.NOT_STARTED)
+    completion_percentage = Column(Integer, default=0)
+    feedback = Column(Text)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    tasks = relationship("OnboardingTask", back_populates="plan", cascade="all, delete-orphan")
+
+
+class OnboardingTask(Base):
+    """
+    Individual onboarding tasks.
+    Maps to: Assign Onboarding Tasks requirements.
+    """
+    __tablename__ = "onboarding_tasks"
+    
+    id = Column(String, primary_key=True)
+    plan_id = Column(String, ForeignKey("onboarding_plans.id"), nullable=False)
+    title = Column(String, nullable=False)
+    description = Column(Text)
+    category = Column(String)  # account_setup, tool_access, documentation, assignment
+    day_due = Column(Integer)  # Day number (1-90)
+    is_completed = Column(Boolean, default=False)
+    completed_at = Column(DateTime)
+    documentation_url = Column(String)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    plan = relationship("OnboardingPlan", back_populates="tasks")
+
+
+class KnowledgeArticle(Base):
+    """
+    Internal knowledge base articles.
+    Maps to: Maintain Internal Knowledge Base requirements.
+    """
+    __tablename__ = "knowledge_articles"
+    
+    id = Column(String, primary_key=True)
+    title = Column(String, nullable=False)
+    content = Column(Text, nullable=False)
+    summary = Column(Text)
+    category = Column(String)  # onboarding, faq, best_practices, process
+    tags = Column(Text)  # JSON array
+    status = Column(Enum(ArticleStatus), default=ArticleStatus.DRAFT)
+    
+    # Metadata
+    author = Column(String)
+    view_count = Column(Integer, default=0)
+    helpful_count = Column(Integer, default=0)
+    is_outdated = Column(Boolean, default=False)
+    outdated_reason = Column(Text)
+    last_reviewed_at = Column(DateTime)
+    
+    # Role-specific targeting
+    target_roles = Column(Text)  # JSON array of roles this applies to
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
