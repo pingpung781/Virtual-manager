@@ -501,3 +501,56 @@ def adjust_plans_for_availability(
         unavailable_end=request.unavailable_end,
         reason=request.reason
     )
+
+
+# ==================== NEW PHASE 3 ENDPOINTS ====================
+
+@router.get("/availability/{user_id}")
+def get_user_availability(
+    user_id: str,
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
+    db: Session = Depends(get_db)
+):
+    """Returns availability heat map of busy/free slots."""
+    from datetime import timedelta
+    from backend.app.core.availability import get_available_hours
+    
+    if not start_date:
+        start_date = datetime.utcnow()
+    if not end_date:
+        end_date = start_date + timedelta(days=14)
+    
+    return get_available_hours(db, user_id, start_date, end_date)
+
+
+@router.get("/workload/{user_id}/status")
+def get_user_overload_status(
+    user_id: str,
+    db: Session = Depends(get_db)
+):
+    """Returns overload status (LOW, BALANCED, OVERLOADED)."""
+    from backend.app.core.availability import check_overload
+    return check_overload(db, user_id)
+
+
+@router.post("/calendar/sync")
+def sync_external_calendar(
+    user_id: str,
+    source: str = "google",
+    db: Session = Depends(get_db)
+):
+    """
+    Sync external calendar via MCP.
+    
+    Note: This is a stub for MCP integration.
+    Full implementation requires MCP calendar adapter.
+    """
+    return {
+        "message": "Calendar sync initiated",
+        "user_id": user_id,
+        "source": source,
+        "status": "pending",
+        "note": "MCP integration required for full functionality"
+    }
+

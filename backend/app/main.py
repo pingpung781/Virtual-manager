@@ -51,7 +51,10 @@ async def root():
             "Managerial Intelligence",
             "Escalation System",
             "Agent Orchestration",
-            "People & Operations"
+            "People & Operations",
+            "Growth & Scaling",
+            "Analytics & Automation",
+            "Platform & Enterprise (RBAC, Audit, MCP)"
         ]
     }
 

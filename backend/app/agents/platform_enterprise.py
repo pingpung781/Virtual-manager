@@ -824,3 +824,182 @@ class PlatformEnterpriseAgent:
             "is_active": u.is_active,
             "last_login": u.last_login.isoformat() if u.last_login else None
         } for u in users]
+    
+    # ==================== MCP TOOL MANAGEMENT ====================
+    
+    def discover_and_register_tools(self, server_name: str) -> Dict[str, Any]:
+        """
+        Discover and register tools from an MCP server.
+        
+        Scans configured MCP Servers and registers available tools.
+        """
+        from backend.app.mcp.communication import discover_mcp_tools
+        from backend.app.services.platform_service import register_mcp_tool
+        
+        tools = discover_mcp_tools(server_name)
+        
+        registered = []
+        for tool in tools:
+            result = register_mcp_tool(
+                db=self.db,
+                name=tool["name"],
+                server_name=server_name,
+                description=tool.get("description"),
+                input_schema=tool.get("input_schema"),
+                requires_approval=tool.get("requires_approval", False),
+                sensitivity_level=tool.get("sensitivity_level", "low")
+            )
+            registered.append(result)
+        
+        self._log_audit(
+            actor_id="system",
+            action="discover_tools",
+            resource_type="mcp_server",
+            resource_id=server_name,
+            metadata=json.dumps({"tools_found": len(tools)}),
+            outcome="success"
+        )
+        self.db.commit()
+        
+        return {
+            "server": server_name,
+            "tools_discovered": len(tools),
+            "registered": registered
+        }
+    
+    def execute_mcp_tool(
+        self,
+        tool_name: str,
+        server_name: str,
+        parameters: Dict[str, Any],
+        user_id: str
+    ) -> Dict[str, Any]:
+        """
+        Execute an MCP tool with safety checks.
+        
+        Wraps unsafe tools with human confirmation gate.
+        """
+        from backend.app.models import MCPTool
+        
+        # Find tool registration
+        tool = self.db.query(MCPTool).filter(
+            MCPTool.name == tool_name,
+            MCPTool.server_name == server_name,
+            MCPTool.is_active == True
+        ).first()
+        
+        if not tool:
+            return {"error": "Tool not found or not active"}
+        
+        if not tool.is_available:
+            return {"error": "Tool is currently unavailable"}
+        
+        # Check role access
+        if tool.allowed_roles:
+            user = self.db.query(User).filter(User.id == user_id).first()
+            if user:
+                allowed = json.loads(tool.allowed_roles)
+                if user.role.value.lower() not in [r.lower() for r in allowed]:
+                    return {"error": "User role not authorized for this tool"}
+        
+        # Check if approval required
+        if tool.requires_approval:
+            return self.create_approval_request(
+                action_type=f"execute_tool:{tool_name}",
+                resource_type="mcp_tool",
+                resource_id=tool.id,
+                action_summary=f"Execute {tool_name} on {server_name}",
+                requester_id=user_id,
+                impact_summary=f"Parameters: {json.dumps(parameters)}",
+                is_reversible=tool.sensitivity_level != "critical"
+            )
+        
+        # Execute tool
+        from backend.app.mcp.communication import execute_mcp_tool
+        
+        try:
+            result = execute_mcp_tool(
+                tool_name=tool_name,
+                server_name=server_name,
+                parameters=parameters,
+                user_id=user_id
+            )
+            
+            # Update last health check
+            tool.last_health_check = datetime.utcnow()
+            tool.error_count = 0
+            
+            self._log_audit(
+                actor_id=user_id,
+                action="execute_tool",
+                resource_type="mcp_tool",
+                resource_id=tool.id,
+                metadata=json.dumps({"tool": tool_name, "server": server_name}),
+                outcome="success"
+            )
+            
+            self.db.commit()
+            return result
+            
+        except Exception as e:
+            # Track errors for circuit breaker
+            tool.error_count = (tool.error_count or 0) + 1
+            
+            # Auto-disable after 5 consecutive errors
+            if tool.error_count >= 5:
+                tool.is_available = False
+                self._log_audit(
+                    actor_id="system",
+                    action="disable_tool",
+                    resource_type="mcp_tool",
+                    resource_id=tool.id,
+                    reason="Auto-disabled due to repeated failures",
+                    outcome="warning"
+                )
+            
+            self.db.commit()
+            return {"error": str(e), "tool_error_count": tool.error_count}
+    
+    def get_tool_health(self) -> Dict[str, Any]:
+        """Get health status of all registered MCP tools."""
+        from backend.app.models import MCPTool
+        
+        tools = self.db.query(MCPTool).all()
+        
+        healthy = 0
+        degraded = 0
+        unavailable = 0
+        
+        tool_status = []
+        for tool in tools:
+            if not tool.is_active:
+                continue
+            
+            if not tool.is_available:
+                status = "unavailable"
+                unavailable += 1
+            elif (tool.error_count or 0) > 0:
+                status = "degraded"
+                degraded += 1
+            else:
+                status = "healthy"
+                healthy += 1
+            
+            tool_status.append({
+                "name": tool.name,
+                "server": tool.server_name,
+                "status": status,
+                "error_count": tool.error_count or 0,
+                "last_check": tool.last_health_check.isoformat() if tool.last_health_check else None
+            })
+        
+        return {
+            "summary": {
+                "healthy": healthy,
+                "degraded": degraded,
+                "unavailable": unavailable,
+                "total": len(tool_status)
+            },
+            "tools": tool_status
+        }
+

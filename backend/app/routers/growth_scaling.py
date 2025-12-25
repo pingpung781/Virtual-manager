@@ -388,3 +388,76 @@ def flag_outdated(
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
     return result
+
+
+# ==================== NEW PHASE 4 ENDPOINTS ====================
+
+class ApplicationSubmit(BaseModel):
+    job_role_id: str
+    name: str
+    email: str
+    resume_text: str
+    source: str = "website"
+
+
+@router.post("/apply")
+def submit_application(
+    application: ApplicationSubmit,
+    db: Session = Depends(get_db)
+):
+    """Submit candidate application with resume for scoring."""
+    from backend.app.services.growth_service import process_application
+    
+    result = process_application(
+        db=db,
+        job_role_id=application.job_role_id,
+        name=application.name,
+        email=application.email,
+        resume_text=application.resume_text,
+        source=application.source
+    )
+    
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    
+    return result
+
+
+@router.get("/candidates/{job_id}/scored")
+def get_scored_candidates(
+    job_id: str,
+    db: Session = Depends(get_db)
+):
+    """Get candidates sorted by match score."""
+    from backend.app.models import Candidate
+    
+    candidates = db.query(Candidate).filter(
+        Candidate.job_role_id == job_id
+    ).order_by(Candidate.skills_match_score.desc()).all()
+    
+    return [{
+        "id": c.id,
+        "name": c.name,
+        "email": c.email,
+        "stage": c.stage.value,
+        "match_score": c.skills_match_score or 0,
+        "source": c.source
+    } for c in candidates]
+
+
+@router.post("/onboard/{user_id}/activate")
+def activate_onboarding(
+    user_id: str,
+    project_id: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """Activate onboarding and generate tasks for new hire."""
+    from backend.app.services.growth_service import start_onboarding
+    
+    result = start_onboarding(db, user_id, project_id)
+    
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    
+    return result
+

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, Enum, ForeignKey, Text, Integer, Boolean, Table
+from sqlalchemy import Column, String, DateTime, Enum, ForeignKey, Text, Integer, Boolean, Table, Float, Index
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
@@ -139,6 +139,23 @@ class PluginStatus(enum.Enum):
     APPROVED = "approved"
     ACTIVE = "active"
     DISABLED = "disabled"
+
+class OverloadStatus(enum.Enum):
+    LOW = "low"
+    BALANCED = "balanced"
+    OVERLOADED = "overloaded"
+
+class EventType(enum.Enum):
+    MEETING = "meeting"
+    FOCUS_TIME = "focus_time"
+    BLOCKED = "blocked"
+    OUT_OF_OFFICE = "out_of_office"
+
+class AutomationActionType(enum.Enum):
+    ALERT = "alert"
+    REPLAN = "replan"
+    AUTO_ASSIGN = "auto_assign"
+    ESCALATE = "escalate"
 
 # ==================== ASSOCIATION TABLES ====================
 
@@ -461,6 +478,7 @@ class Employee(Base):
     working_hours_start = Column(String, default="09:00")  # 24h format
     working_hours_end = Column(String, default="17:00")    # 24h format
     leave_balance = Column(Integer, default=20)  # Days remaining
+    weekly_capacity_hours = Column(Integer, default=40)  # Standard 40h week
     current_workload_hours = Column(Integer, default=0)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -1168,4 +1186,251 @@ class FeatureFlag(Base):
     change_reason = Column(Text)
     
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+# ==================== ANALYTICS & AUTOMATION MODELS ====================
+
+class CalendarEvent(Base):
+    """
+    External calendar events (Google/Outlook sync).
+    Distinct from Meeting model - represents synced events.
+    """
+    __tablename__ = "calendar_events"
+    
+    id = Column(String, primary_key=True)
+    user_id = Column(String, ForeignKey("employees.id"), nullable=False)
+    title = Column(String, nullable=False)
+    start_time = Column(DateTime, nullable=False)
+    end_time = Column(DateTime, nullable=False)
+    external_id = Column(String)  # Google/Outlook ID
+    event_type = Column(Enum(EventType), default=EventType.MEETING)
+    is_all_day = Column(Boolean, default=False)
+    source = Column(String)  # google, outlook, internal
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class ProjectSnapshot(Base):
+    """
+    Historical project state for trend analysis.
+    Enables velocity calculation and pattern detection.
+    """
+    __tablename__ = "project_snapshots"
+    
+    id = Column(String, primary_key=True)
+    project_id = Column(String, ForeignKey("projects.id"), nullable=False, index=True)
+    snapshot_date = Column(DateTime, nullable=False, index=True)
+    
+    # Metrics
+    completion_percentage = Column(Integer, default=0)
+    total_tasks = Column(Integer, default=0)
+    completed_tasks = Column(Integer, default=0)
+    blocked_task_count = Column(Integer, default=0)
+    overdue_task_count = Column(Integer, default=0)
+    risk_score = Column(Integer, default=0)  # 0-100
+    
+    # Velocity metrics
+    tasks_completed_this_period = Column(Integer, default=0)
+    velocity_trend = Column(String)  # increasing, stable, decreasing
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class AutomationRule(Base):
+    """
+    IFTTT automation rules for proactive management.
+    Defines trigger conditions and automated actions.
+    """
+    __tablename__ = "automation_rules"
+    
+    id = Column(String, primary_key=True)
+    name = Column(String, nullable=False)
+    description = Column(Text)
+    
+    # Trigger condition (JSON logic)
+    trigger_condition = Column(Text, nullable=False)  
+    # Example: {"metric": "overdue_tasks", "operator": ">", "value": 5}
+    
+    action_type = Column(Enum(AutomationActionType), nullable=False)
+    action_config = Column(Text)  # JSON config for the action
+    
+    # Scope
+    project_id = Column(String, ForeignKey("projects.id"), nullable=True)
+    
+    # Status
+    is_active = Column(Boolean, default=True)
+    last_triggered = Column(DateTime)
+    trigger_count = Column(Integer, default=0)
+    
+    created_by = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class Forecast(Base):
+    """
+    AI predictions for accuracy tracking.
+    Stores predictions to measure and improve forecasting.
+    """
+    __tablename__ = "forecasts"
+    
+    id = Column(String, primary_key=True)
+    entity_type = Column(String, nullable=False)  # PROJECT, TEAM, TASK
+    entity_id = Column(String, nullable=False)
+    
+    # Prediction
+    prediction_type = Column(String)  # completion_date, risk_level, workload
+    prediction_text = Column(Text, nullable=False)
+    predicted_value = Column(String)  # The actual predicted outcome
+    confidence_score = Column(Float)  # 0-1
+    
+    # Target
+    target_date = Column(DateTime)  # When we expect to validate
+    
+    # Validation
+    actual_outcome = Column(String)  # Filled when validated
+    was_accurate = Column(Boolean)  # True if prediction matched
+    validated_at = Column(DateTime)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+# ==================== PLATFORM & ENTERPRISE MODELS ====================
+
+class AuditLog(Base):
+    """
+    Immutable record of who did what and why.
+    Critical for compliance and explainability.
+    """
+    __tablename__ = "audit_logs"
+    
+    id = Column(String, primary_key=True)
+    timestamp = Column(DateTime, default=datetime.utcnow, index=True)
+    actor_id = Column(String, nullable=False, index=True)
+    actor_type = Column(String, default="user")  # user, agent, system
+    
+    # Action details
+    action_type = Column(String, nullable=False)  # CREATE, READ, UPDATE, DELETE, APPROVE
+    target_entity = Column(String, nullable=False)  # project, task, user, etc.
+    target_id = Column(String, index=True)
+    
+    # Change tracking
+    changes = Column(Text)  # JSON diff of before/after
+    previous_value = Column(Text)  # Snapshot of old state
+    new_value = Column(Text)  # Snapshot of new state
+    
+    # Context
+    reason = Column(Text)  # AI reasoning or User note
+    prompt = Column(Text)  # For AI actions, the original prompt
+    response = Column(Text)  # For AI actions, the generated response
+    
+    # Metadata
+    ip_address = Column(String)
+    user_agent = Column(String)
+    session_id = Column(String)
+    tenant_id = Column(String, index=True)
+    
+    # Status
+    is_sensitive = Column(Boolean, default=False)
+    is_success = Column(Boolean, default=True)
+    error_message = Column(Text)
+
+
+class RolePermission(Base):
+    """
+    Granular RBAC configuration.
+    Maps roles to specific resource actions.
+    """
+    __tablename__ = "role_permissions"
+    
+    id = Column(String, primary_key=True)
+    role_name = Column(String, nullable=False, index=True)  # ADMIN, MANAGER, CONTRIBUTOR, VIEWER
+    
+    # Permission scope
+    resource = Column(String, nullable=False)  # PROJECT, TASK, BUDGET, USER, GOAL
+    action = Column(String, nullable=False)  # CREATE, READ, UPDATE, DELETE, APPROVE
+    
+    # Conditions
+    condition = Column(Text)  # JSON conditions like {"own_team_only": true}
+    
+    # Metadata
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    created_by = Column(String)
+    
+    # Unique constraint
+    __table_args__ = (
+        Index('ix_role_resource_action', 'role_name', 'resource', 'action'),
+    )
+
+
+class Tenant(Base):
+    """
+    Multi-tenancy support for SaaS deployment.
+    Data isolation and feature flag management.
+    """
+    __tablename__ = "tenants"
+    
+    id = Column(String, primary_key=True)
+    name = Column(String, nullable=False, unique=True)
+    slug = Column(String, nullable=False, unique=True)  # URL-friendly identifier
+    
+    # Configuration
+    config = Column(Text)  # JSON feature flags and settings
+    subscription_tier = Column(String, default="free")  # free, pro, enterprise
+    
+    # Limits
+    max_users = Column(Integer, default=5)
+    max_projects = Column(Integer, default=3)
+    max_storage_gb = Column(Integer, default=1)
+    
+    # Contact
+    owner_email = Column(String, nullable=False)
+    billing_email = Column(String)
+    
+    # Status
+    is_active = Column(Boolean, default=True)
+    is_verified = Column(Boolean, default=False)
+    suspended_at = Column(DateTime)
+    suspension_reason = Column(String)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    trial_ends_at = Column(DateTime)
+
+
+class MCPTool(Base):
+    """
+    Registered MCP tools for external integrations.
+    Tracks tool discovery and safety gates.
+    """
+    __tablename__ = "mcp_tools"
+    
+    id = Column(String, primary_key=True)
+    name = Column(String, nullable=False)
+    description = Column(Text)
+    
+    # MCP Server info
+    server_name = Column(String, nullable=False)  # github, slack, google_drive
+    server_url = Column(String)
+    
+    # Tool definition
+    input_schema = Column(Text)  # JSON schema
+    output_schema = Column(Text)  # JSON schema
+    
+    # Safety
+    requires_approval = Column(Boolean, default=False)
+    sensitivity_level = Column(String, default="low")  # low, medium, high, critical
+    allowed_roles = Column(Text)  # JSON array of roles
+    
+    # Status
+    is_active = Column(Boolean, default=True)
+    is_available = Column(Boolean, default=True)
+    last_health_check = Column(DateTime)
+    error_count = Column(Integer, default=0)
+    
+    # Timestamps
+    registered_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
