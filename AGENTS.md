@@ -11,6 +11,7 @@ The **Manager Orchestrator** is the root node of the LangGraph system. It acts a
   - `intent: personnel/leave` -> **People Ops Agent**
   - `intent: hiring/growth` -> **Growth & Scaling Agent**
   - `intent: analytics/forecast` -> **Analytics & Automation Agent**
+  - `intent: platform/security` -> **Platform & Enterprise Agent**
   - `intent: status/check` -> **Execution Agent**
   - `intent: notify` -> **Communication Agent**
   - `intent: strategy/risk` -> **Managerial Agent**
@@ -84,6 +85,18 @@ The **Manager Orchestrator** is the root node of the LangGraph system. It acts a
   - **Proactive Suggestions**: Actionable recommendations with rationale and expected impact.
   - **Early Warnings**: Prioritized alerts that trigger early enough to act.
   - **Pattern Learning**: Tracks recurring issues to improve forecasts over time.
+
+## 🛡️ Platform & Enterprise Agent (`backend/app/agents/platform_enterprise.py`)
+
+*The Security & Reliability Engineer.*
+- **Role**: Enforces security, manages access control, and ensures system reliability.
+- **Capabilities**:
+  - **RBAC**: Role-based access control with Admin, Manager, Contributor, Viewer roles.
+  - **Approval Workflows**: Routes sensitive actions through approval chains.
+  - **Audit Trail**: Immutable logging of who, what, when, why for every action.
+  - **State Management**: Versioned state with rollback support.
+  - **Idempotency**: Prevents duplicate operations.
+  - **Health Monitoring**: System health checks and observability.
 
 ## 🔌 MCP Tool Integration
 

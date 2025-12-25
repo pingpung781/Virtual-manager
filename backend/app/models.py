@@ -87,6 +87,30 @@ class OnboardingStatus(enum.Enum):
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
 
+class UserRole(enum.Enum):
+    ADMIN = "admin"
+    MANAGER = "manager"
+    CONTRIBUTOR = "contributor"
+    VIEWER = "viewer"
+
+class ApprovalStatus(enum.Enum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    EXPIRED = "expired"
+
+class ActionSensitivity(enum.Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+class OperationStatus(enum.Enum):
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
 # ==================== ASSOCIATION TABLES ====================
 
 # Milestone-Task many-to-many relationship
@@ -638,3 +662,172 @@ class KnowledgeArticle(Base):
     
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+# ==================== PLATFORM & ENTERPRISE MODELS ====================
+
+class User(Base):
+    """
+    User account for authentication and authorization.
+    Maps to: Role-Based Access Control requirements.
+    """
+    __tablename__ = "users"
+    
+    id = Column(String, primary_key=True)
+    email = Column(String, unique=True, nullable=False)
+    name = Column(String, nullable=False)
+    password_hash = Column(String)  # Hashed password
+    role = Column(Enum(UserRole), default=UserRole.VIEWER)
+    permissions = Column(Text)  # JSON array of specific permissions
+    is_active = Column(Boolean, default=True)
+    is_verified = Column(Boolean, default=False)
+    
+    # Security
+    failed_login_attempts = Column(Integer, default=0)
+    locked_until = Column(DateTime)
+    last_login = Column(DateTime)
+    last_password_change = Column(DateTime)
+    
+    # Multi-tenant support
+    tenant_id = Column(String)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class AuditLog(Base):
+    """
+    Immutable audit trail for all system actions.
+    Maps to: Audit Trails requirements - who, what, when, why.
+    """
+    __tablename__ = "audit_logs"
+    
+    id = Column(String, primary_key=True)
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    # Who
+    actor_id = Column(String)  # User ID or 'system'
+    actor_name = Column(String)
+    actor_role = Column(String)
+    
+    # What
+    action = Column(String, nullable=False)  # create, update, delete, approve, reject
+    resource_type = Column(String, nullable=False)  # task, project, user, etc.
+    resource_id = Column(String)
+    resource_name = Column(String)
+    
+    # Details
+    changes = Column(Text)  # JSON of before/after values
+    metadata = Column(Text)  # Additional context
+    
+    # Why
+    reason = Column(Text)
+    
+    # Outcome
+    outcome = Column(String)  # success, failure, denied
+    error_message = Column(Text)
+    
+    # Security context
+    ip_address = Column(String)
+    user_agent = Column(String)
+    tenant_id = Column(String)
+
+
+class ApprovalRequest(Base):
+    """
+    Approval workflow for sensitive actions.
+    Maps to: Approval Workflows requirements.
+    """
+    __tablename__ = "approval_requests"
+    
+    id = Column(String, primary_key=True)
+    
+    # What needs approval
+    action_type = Column(String, nullable=False)  # delete_data, send_external, hire_decision
+    sensitivity = Column(Enum(ActionSensitivity), default=ActionSensitivity.HIGH)
+    resource_type = Column(String)
+    resource_id = Column(String)
+    action_summary = Column(Text, nullable=False)
+    action_details = Column(Text)  # JSON with full action context
+    
+    # Impact assessment
+    impact_summary = Column(Text)
+    is_reversible = Column(Boolean, default=True)
+    
+    # Request info
+    requester_id = Column(String, nullable=False)
+    requester_name = Column(String)
+    requested_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Approval chain
+    required_approvers = Column(Text)  # JSON array of user IDs
+    current_approvers = Column(Text)  # JSON array of users who approved
+    
+    # Status
+    status = Column(Enum(ApprovalStatus), default=ApprovalStatus.PENDING)
+    expires_at = Column(DateTime)
+    
+    # Resolution
+    resolved_by = Column(String)
+    resolved_at = Column(DateTime)
+    resolution_reason = Column(Text)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class SystemState(Base):
+    """
+    Versioned system state for rollback support.
+    Maps to: State Management and Rollback requirements.
+    """
+    __tablename__ = "system_states"
+    
+    id = Column(String, primary_key=True)
+    key = Column(String, nullable=False, index=True)  # config.feature_x, state.workflow_y
+    value = Column(Text, nullable=False)  # JSON value
+    value_type = Column(String)  # string, number, boolean, json
+    
+    # Versioning
+    version = Column(Integer, default=1)
+    previous_value = Column(Text)
+    
+    # Metadata
+    description = Column(Text)
+    changed_by = Column(String)
+    change_reason = Column(Text)
+    
+    # Rollback info
+    is_rollback = Column(Boolean, default=False)
+    rolled_back_from_version = Column(Integer)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class OperationLock(Base):
+    """
+    Idempotency tracking for operations.
+    Maps to: Idempotent Operations requirements.
+    """
+    __tablename__ = "operation_locks"
+    
+    id = Column(String, primary_key=True)
+    operation_id = Column(String, unique=True, nullable=False)  # Client-provided idempotency key
+    operation_type = Column(String, nullable=False)
+    resource_type = Column(String)
+    resource_id = Column(String)
+    
+    # Status
+    status = Column(Enum(OperationStatus), default=OperationStatus.PENDING)
+    result = Column(Text)  # JSON result if completed
+    error = Column(Text)
+    
+    # Locking
+    locked_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime)  # Lock expiration for cleanup
+    completed_at = Column(DateTime)
+    
+    # Context
+    actor_id = Column(String)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)

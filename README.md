@@ -41,6 +41,7 @@ graph TD
 - **📈 Growth & Scaling**: Manages hiring pipelines, generates 30-60-90 day onboarding plans, and curates internal knowledge bases.
 - **👁️ Active Monitoring**: Continuously watches task statuses and proactively flags risks before deadlines are missed.
 - **📊 Analytics & Automation**: Data-driven insights, risk forecasting, executive dashboards, and proactive suggestions.
+- **🛡️ Platform & Enterprise**: RBAC, approval workflows, immutable audit trails, and enterprise-grade reliability.
 - **� Managerial Intelligence**: Provides strategic risk analysis, goal refinement, and automates standups/reporting.
 - **�🛡️ Human Control Plane**: A "God Mode" dashboard to observe agent thought processes in real-time and intervene/override actions instantly.
 - **🔌 Deep Integration**: Built on MCP to plug into Google Calendar, Slack, GitHub, and Jira without custom glue code.
