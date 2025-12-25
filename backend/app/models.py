@@ -87,6 +87,11 @@ class OnboardingStatus(enum.Enum):
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
 
+class RiskLevel(enum.Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
 class UserRole(enum.Enum):
     ADMIN = "admin"
     MANAGER = "manager"
@@ -200,6 +205,63 @@ class GoalTaskLink(Base):
     
     goal = relationship("Goal", back_populates="linked_tasks")
     task = relationship("Task", back_populates="goal_links")
+
+
+class KeyResult(Base):
+    """
+    Key Results (KPIs) for Goals.
+    Maps to: Strategy & Business Planning requirements.
+    """
+    __tablename__ = "key_results"
+    
+    id = Column(String, primary_key=True)
+    goal_id = Column(String, ForeignKey("goals.id"), nullable=False)
+    metric_name = Column(String, nullable=False)
+    target_value = Column(Float, nullable=False)
+    current_value = Column(Float, default=0)
+    unit = Column(String)  # e.g., %, USD, count
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    goal = relationship("Goal", backref="key_results")
+
+
+class Risk(Base):
+    """
+    Intelligence artifacts for risk tracking.
+    Maps to: Decision Support & Risk Management requirements.
+    """
+    __tablename__ = "risks"
+    
+    id = Column(String, primary_key=True)
+    project_id = Column(String, ForeignKey("projects.id"), nullable=False)
+    description = Column(Text, nullable=False)
+    likelihood = Column(Enum(RiskLevel), default=RiskLevel.MEDIUM)
+    impact = Column(Enum(RiskLevel), default=RiskLevel.MEDIUM)
+    mitigation_plan = Column(Text)
+    status = Column(String, default="open")  # open, mitigated, closed
+    created_by = Column(String)  # "system" or user_id
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    project = relationship("Project", backref="risks")
+
+
+class DecisionLog(Base):
+    """
+    Stores agent reasoning and decisions.
+    Maps to: Explain reasoning in plain language requirement.
+    """
+    __tablename__ = "decision_logs"
+    
+    id = Column(String, primary_key=True)
+    context = Column(Text, nullable=False)  # What triggered the decision
+    decision_made = Column(Text, nullable=False)  # The actual decision
+    rationale = Column(Text, nullable=False)  # Why this decision
+    agent_name = Column(String)  # Which agent made it
+    project_id = Column(String, ForeignKey("projects.id"))
+    task_id = Column(String, ForeignKey("tasks.id"))
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class Project(Base):
