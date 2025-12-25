@@ -10,6 +10,7 @@ The **Manager Orchestrator** is the root node of the LangGraph system. It acts a
   - `intent: planning` -> **Planning Agent**
   - `intent: personnel/leave` -> **People Ops Agent**
   - `intent: hiring/growth` -> **Growth & Scaling Agent**
+  - `intent: analytics/forecast` -> **Analytics & Automation Agent**
   - `intent: status/check` -> **Execution Agent**
   - `intent: notify` -> **Communication Agent**
   - `intent: strategy/risk` -> **Managerial Agent**
@@ -71,6 +72,18 @@ The **Manager Orchestrator** is the root node of the LangGraph system. It acts a
   - **Summarization**: Compresses complex logs into readable status updates.
   - **Routing**: Decides whether to ping via Slack (urgent) or Email (digest).
   - **Tone Adaptation**: Adjusts language based on whether it's talking to a dev (technical) or a stakeholder (high-level).
+
+## 📊 Analytics & Automation Agent (`backend/app/agents/analytics_automation.py`)
+
+*The Data Scientist.*
+- **Role**: Analyzes execution data, detects patterns, forecasts outcomes, and triggers proactive recommendations.
+- **Capabilities**:
+  - **Project Analytics**: Health scores, trends, and contributing factors analysis.
+  - **Risk Forecasting**: Probability-based risk detection with time-to-risk windows.
+  - **Executive Dashboards**: Concise, outcome-focused summaries for leadership.
+  - **Proactive Suggestions**: Actionable recommendations with rationale and expected impact.
+  - **Early Warnings**: Prioritized alerts that trigger early enough to act.
+  - **Pattern Learning**: Tracks recurring issues to improve forecasts over time.
 
 ## 🔌 MCP Tool Integration
 

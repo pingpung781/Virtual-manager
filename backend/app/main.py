@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.app.core.database import engine, Base
 from backend.app.routes import router as api_router
-from backend.app.routers import managerial, goals, milestones, execution, people_ops, growth_scaling
+from backend.app.routers import managerial, goals, milestones, execution, people_ops, growth_scaling, analytics
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -32,6 +32,7 @@ app.include_router(milestones.router, prefix="/api")
 app.include_router(execution.router, prefix="/api")
 app.include_router(people_ops.router)
 app.include_router(growth_scaling.router)
+app.include_router(analytics.router)
 
 
 @app.get("/")
