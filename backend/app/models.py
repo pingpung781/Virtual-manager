@@ -4,6 +4,15 @@ from datetime import datetime
 import enum
 from backend.app.core.database import Base
 
+# pgvector support for embeddings (Phase 3: Cognitive Persistence)
+try:
+    from pgvector.sqlalchemy import Vector
+    PGVECTOR_AVAILABLE = True
+except ImportError:
+    # Fallback for SQLite/systems without pgvector
+    Vector = None
+    PGVECTOR_AVAILABLE = False
+
 # ==================== ENUMS ====================
 
 class TaskStatus(enum.Enum):
@@ -156,6 +165,15 @@ class AutomationActionType(enum.Enum):
     REPLAN = "replan"
     AUTO_ASSIGN = "auto_assign"
     ESCALATE = "escalate"
+
+class MemoryType(enum.Enum):
+    """Types of memories the AI can store for cognitive persistence."""
+    DECISION = "decision"
+    PREFERENCE = "preference"
+    MEETING_NOTE = "meeting_note"
+    STANDUP_FOCUS = "standup_focus"
+    TASK_COMPLETION = "task_completion"
+    CONTEXT = "context"
 
 # ==================== ASSOCIATION TABLES ====================
 
@@ -1492,3 +1510,46 @@ class MCPTool(Base):
     # Timestamps
     registered_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+# ==================== MEMORY MODELS (Phase 3: Cognitive Persistence) ====================
+
+class Memory(Base):
+    """
+    Long-term memory for VAM cognitive persistence.
+    Stores embeddings for semantic search of past decisions, preferences, and context.
+    
+    Uses pgvector for Postgres or falls back to JSON storage for SQLite.
+    """
+    __tablename__ = "memories"
+    
+    id = Column(String, primary_key=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    
+    # Memory content
+    content = Column(Text, nullable=False)  # The raw memory text
+    memory_type = Column(Enum(MemoryType), nullable=False)
+    
+    # Vector embedding (1536 dimensions for text-embedding-3-small)
+    # Uses pgvector on Postgres, or stores as JSON string on SQLite
+    embedding = Column(Vector(1536)) if PGVECTOR_AVAILABLE else Column(Text)
+    
+    # Additional context
+    metadata = Column(Text)  # JSON for extra context (source, related entities, etc.)
+    source = Column(String)  # Where the memory came from (standup, task, chat, etc.)
+    
+    # Relevance tracking
+    access_count = Column(Integer, default=0)  # How often this memory was retrieved
+    last_accessed_at = Column(DateTime)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    user = relationship("User", backref="memories")
+    
+    # Indexes for efficient queries
+    __table_args__ = (
+        Index('ix_memories_user_type', 'user_id', 'memory_type'),
+        Index('ix_memories_user_created', 'user_id', 'created_at'),
+    )

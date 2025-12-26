@@ -206,6 +206,33 @@ async def handle_issue_event(db: Session, payload: dict) -> dict:
         db.commit()
         logger.info(f"Task {task.id} marked completed via GitHub webhook")
         
+        # Phase 3: Save task completion to long-term memory
+        try:
+            from backend.app.core.memory import memory_service
+            import asyncio
+            
+            # Get user_id from task owner or project context
+            user_id = task.owner  # Assuming owner is the user_id
+            if user_id:
+                await memory_service.store_memory(
+                    user_id=user_id,
+                    content=f"Completed task: {task.name}. Project: {task.project_id}. Issue #{issue_number} closed.",
+                    memory_type="task_completion",
+                    db=db,
+                    source="github",
+                    metadata={
+                        "task_id": task.id,
+                        "task_name": task.name,
+                        "project_id": task.project_id,
+                        "github_issue": issue_number,
+                        "github_repo": repo_full_name,
+                        "completed_at": datetime.utcnow().isoformat()
+                    }
+                )
+                logger.info(f"Saved task completion to memory for user {user_id}")
+        except Exception as e:
+            logger.warning(f"Failed to save task completion to memory: {e}")
+        
         return {
             "message": "Task marked as completed",
             "task_id": task.id,

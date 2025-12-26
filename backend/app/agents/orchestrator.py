@@ -7,11 +7,14 @@ Implements multi-agent coordination for:
 - Execution Monitoring
 - People Operations
 - Communication
+
+Phase 3: Integrated with Memory Service for cognitive persistence.
 """
 
 from typing import TypedDict, List, Dict, Any, Optional
 from langgraph.graph import StateGraph, END
 import json
+import asyncio
 from backend.app.core.logging import logger
 
 
@@ -22,6 +25,7 @@ class AgentState(TypedDict):
     next_step: str
     context: Dict[str, Any]
     result: Optional[Dict[str, Any]]
+    past_context: Optional[List[str]]  # Phase 3: Retrieved memories
 
 
 class AgentOrchestrator:
@@ -123,9 +127,15 @@ class AgentOrchestrator:
         
         last_message = state["messages"][-1] if state["messages"] else ""
         context = state.get("context", {})
+        past_context = state.get("past_context") or context.get("past_context", "")
         
         result = {}
         message_lower = last_message.lower()
+        
+        # Enrich context with past memories if available
+        enriched_context = json.dumps(context)
+        if past_context:
+            enriched_context = f"{past_context}\n\nCURRENT CONTEXT:\n{enriched_context}"
         
         if "risk" in message_lower:
             tasks = context.get("tasks", [])
@@ -135,10 +145,10 @@ class AgentOrchestrator:
             raw_text = context.get("goal_text", last_message)
             result = managerial_agent.refine_goal(raw_text)
         else:
-            # Default: stakeholder query
+            # Default: stakeholder query with memory-enriched context
             result = managerial_agent.answer_stakeholder_query(
                 last_message,
-                json.dumps(context)
+                enriched_context
             )
         
         return {
@@ -260,7 +270,7 @@ class AgentOrchestrator:
     
     def process(self, message: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
-        Process a message through the orchestrator.
+        Process a message through the orchestrator (synchronous version).
         
         Args:
             message: User message/request
@@ -274,7 +284,8 @@ class AgentOrchestrator:
             "current_agent": "",
             "next_step": "",
             "context": context or {},
-            "result": None
+            "result": None,
+            "past_context": context.get("past_context") if context else None
         }
         
         try:
@@ -291,6 +302,54 @@ class AgentOrchestrator:
                 "success": False,
                 "error": str(e)
             }
+    
+    async def process_with_memory(
+        self,
+        message: str,
+        user_id: str,
+        db,
+        context: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Process a message with automatic memory context injection (Phase 3).
+        
+        Retrieves relevant past memories and injects them into the agent context
+        before processing. This enables the AI to remember past decisions,
+        preferences, and context.
+        
+        Args:
+            message: User message/request
+            user_id: The user ID for memory retrieval
+            db: Database session
+            context: Additional context (tasks, goals, etc.)
+        
+        Returns:
+            Processing result from the appropriate agent, enriched with memory
+        """
+        from backend.app.core.memory import memory_service
+        
+        context = context or {}
+        context["user_id"] = user_id
+        
+        # Retrieve relevant memories
+        try:
+            memories = await memory_service.retrieve_context(
+                user_id=user_id,
+                query=message,
+                db=db,
+                limit=5
+            )
+            
+            if memories:
+                # Format memories for prompt injection
+                context["past_context"] = memory_service.format_context_for_prompt(memories)
+                context["memory_ids"] = [m.id for m in memories]
+                logger.info(f"Injected {len(memories)} memories into context for user {user_id}")
+        except Exception as e:
+            logger.warning(f"Failed to retrieve memories: {e}")
+        
+        # Process with enriched context
+        return self.process(message, context)
 
 
 # Singleton orchestrator instance

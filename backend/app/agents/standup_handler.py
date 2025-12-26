@@ -174,6 +174,28 @@ async def process_standup_response(
         
         await service.send_dm(slack_user_id, message)
     
+    # Phase 3: Save focus to long-term memory for cognitive persistence
+    try:
+        from app.core.memory import memory_service
+    except ImportError:
+        from backend.app.core.memory import memory_service
+    
+    try:
+        await memory_service.store_memory(
+            user_id=user_id,
+            content=f"Daily focus for {datetime.utcnow().strftime('%b %d, %Y')}: {focus_task}",
+            memory_type="standup_focus",
+            db=db,
+            source="standup",
+            metadata={
+                "date": datetime.utcnow().isoformat(),
+                "calendar_blocked": result.get("calendar_blocked", False)
+            }
+        )
+        logger.info(f"Saved standup focus to memory for user {user_id}")
+    except Exception as e:
+        logger.warning(f"Failed to save standup to memory: {e}")
+    
     # Clear conversation state
     if user_id in _standup_state:
         del _standup_state[user_id]
