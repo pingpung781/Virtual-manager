@@ -100,9 +100,19 @@ generate_onboarding_tasks(db, plan_id, employee_name, role, start_date) -> Dict
 - **Role**: The "nagger" that ensures things get done.
 - **Capabilities**:
   - **Monitoring**: Polls the database for tasks approaching deadlines.
+  - **GitHub Synchronization**:
+    - **Outbound**: Creates and updates GitHub Issues from VAM tasks.
+    - **Inbound**: Listens for webhook events (close/reopen) to update VAM status.
+    - **Linking**: Maintains mapping between internal Task IDs and GitHub Issue Numbers.
   - **Blocker Detection**: Identifies tasks with no recent updates.
   - **Escalation**: Triggers the Manager Orchestrator to re-assign or notify stakeholders if blockers persist.
   - **Milestone Tracking**: Validates critical path progress.
+
+### Service Layer (`backend/app/services/github_service.py`)
+- `create_issue()` - Create new GitHub issue from VAM task
+- `update_issue()` - Sync VAM updates to GitHub
+- `verify_webhook_signature()` - Securely validate inbound webhooks
+- `exchange_code_for_token()` - Handle OAuth flow
 
 ---
 
@@ -181,6 +191,7 @@ take_project_snapshot(db, project_id) -> Dict
 - **Role**: Enforces security, manages access control, and ensures system reliability.
 - **Capabilities**:
   - **RBAC**: Role-based access control with Admin, Manager, Contributor, Viewer roles.
+  - **Identity Management**: GitHub OAuth 2.0 integration for authentication and user profile sync.
   - **Permission Verification**: `check_permission(user_id, permission)` with audit logging.
   - **Approval Workflows**: Routes sensitive actions through approval chains with expiration.
   - **Audit Trail**: Immutable logging of who, what, when, why—including AI prompt/response.
@@ -211,6 +222,7 @@ require_permission(resource, action)  # FastAPI dependency decorator
 
 ### Enterprise Models
 - **AuditLog**: Immutable record with prompt/response for AI actions
+- **AgentActivity**: Log of agent actions (syncs, notifications) for timeline view
 - **RolePermission**: Granular role → resource → action mappings
 - **Tenant**: Multi-tenancy with subscription tiers and limits
 - **MCPTool**: Tool registry with safety gates and health tracking
@@ -268,6 +280,16 @@ VAM uses the **Model Context Protocol (MCP)** to interact with the outside world
 6. **Communication Agent**: Generates: "Leave approved for Ashish. Calendar updated."
 7. **Output**: Displayed on Dashboard Log + logged in AuditLog.
 
+### GitHub Task Sync Flow
+1. **Trigger**: User clicks "Sync to GitHub" on a Task.
+2. **Backend**: Checks `User.github_access_token` and `default_repo`.
+3. **GitHub Service**: Creates Issue via GitHub API with labels `vam-sync`.
+4. **Task Update**: Stores `github_issue_id` and sets sync status to `synced`.
+5. **Bi-directional**:
+   - **VAM → GitHub**: Updates to Task title/desc push to Issue.
+   - **GitHub → VAM**: Webhook triggers on Issue Close → Marks Task Completed.
+6. **Audit**: Sync events logged to `AgentActivity`.
+
 ### Hiring Pipeline Flow
 1. **Input**: "Post a new Backend Engineer role".
 2. **Orchestrator**: Routes to **Growth & Scaling Agent**.
@@ -296,11 +318,11 @@ VAM uses the **Model Context Protocol (MCP)** to interact with the outside world
 
 | Category | Models |
 |----------|--------|
-| **Core** | Task, Project, Milestone, Goal, User, Employee |
+| **Core** | Task, Project, Milestone, Goal, User, Employee, TaskHistory |
 | **People** | LeaveRequest, UserLeave, Holiday, Meeting, CalendarEvent, WorkCapacity, BurnoutIndicator |
 | **Growth** | JobRole, Candidate, Interview, OnboardingPlan, OnboardingTask, KnowledgeArticle |
 | **Analytics** | ProjectSnapshot, AutomationRule, Forecast |
-| **Platform** | AuditLog, RolePermission, Tenant, MCPTool, ApprovalRequest, SystemState, OperationLock |
+| **Platform** | AuditLog, AgentActivity, RolePermission, Tenant, MCPTool, ApprovalRequest, SystemState, OperationLock |
 | **Advanced** | OrganizationRule, CustomWorkflow, Plugin, VoiceIntent, StaffingPrediction, PerformanceFeedback, FeatureFlag |
 
 ---

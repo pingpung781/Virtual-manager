@@ -45,6 +45,7 @@ graph TD
 ### Phase 1-2: Core Foundation & Managerial Intelligence
 - **🧠 Autonomous Planning**: Decomposes goals into actionable DAGs with dependency tracking
 - **📋 Task & Project Management**: Full lifecycle management with milestones and goals
+- **🐙 GitHub Integration**: Bi-directional sync with GitHub Issues, OAuth login, and webhook automation
 - **👁️ Active Monitoring**: Proactive risk detection and deadline tracking
 - **📊 Managerial Intelligence**: Strategic risk analysis, goal refinement, automated reporting
 
@@ -83,6 +84,7 @@ graph TD
 - **Python** 3.10+
 - **Node.js** 18+
 - **Git**
+- **GitHub OAuth App** (Client ID & Secret)
 
 ### Installation
 
@@ -102,6 +104,10 @@ graph TD
    # source venv/bin/activate
    
    pip install -r requirements.txt
+   
+   # Configure Environment
+   cp .env.example .env
+   # Edit .env with your GitHub Client ID/Secret and DB settings
    ```
    
 3. **Frontend Setup**
@@ -151,8 +157,9 @@ Virtual-manager/
 │   │   │   ├── people_service.py    # Leave & calendar CRUD
 │   │   │   ├── growth_service.py    # Applications & onboarding
 │   │   │   ├── analytics_service.py # Dashboard & rules
-│   │   │   └── platform_service.py  # Tenants & audit export
-│   │   ├── routers/             # 20+ API Routers
+│   │   │   ├── platform_service.py  # Tenants & audit export
+│   │   │   └── github_service.py    # GitHub API & Sync
+│   │   ├── routers/             # API Routers (auth, webhooks, etc)
 │   │   ├── mcp/                 # MCP Tool Servers
 │   │   ├── models.py            # 30+ SQLAlchemy models
 │   │   └── main.py              # FastAPI entry point
@@ -180,6 +187,8 @@ Virtual-manager/
 | Analytics | `/api/v1/analytics/*` | Velocity, forecasts, rules |
 | Platform | `/api/v1/platform/*` | Users, RBAC, audit, tools |
 | Managerial | `/api/v1/managerial/*` | Risk, reports, strategy |
+| Auth | `/auth/*` | GitHub OAuth, session, repo selection |
+| Webhooks | `/webhooks/*` | GitHub inbound event processing |
 
 ## 🤝 Contributing
 
